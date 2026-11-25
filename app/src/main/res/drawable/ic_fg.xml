@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- orbit loop -->
+    <path android:strokeColor="#7FFFF0" android:strokeWidth="3.5" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M30,70 C22,52 34,32 54,32 C74,32 82,50 74,64 C66,78 44,78 40,64" />
+    <path android:strokeColor="#E37BFF" android:strokeWidth="2" android:strokeLineCap="round" android:fillColor="#00000000"
+        android:pathData="M30,70 L22,80" />
+    <!-- star -->
+    <path android:fillColor="#FF7BE5" android:pathData="M54,54 m-11,0 a11,11 0 1,0 22,0 a11,11 0 1,0 -22,0" />
+    <path android:fillColor="#FFFFFF" android:pathData="M52,52 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+    <!-- comet -->
+    <path android:fillColor="#FFFFFF" android:pathData="M40,64 m-4,0 a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0" />
+    <!-- shards -->
+    <path android:fillColor="#9BF6FF" android:pathData="M66,44 l3,-6 l3,6 l-3,6 z" />
+    <path android:fillColor="#FFE38A" android:pathData="M60,64 l2,-4 l2,4 l-2,4 z" />
+</vector>

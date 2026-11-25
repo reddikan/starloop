@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Starloop</title>
+<style>
+@font-face{font-family:'ArchivoB';src:url(fonts/ArchivoBlack-Regular.ttf)}
+@font-face{font-family:'AntonF';src:url(fonts/Anton-Regular.ttf)}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;position:absolute;left:0;top:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="audio.js"></script>
+<script>
+// make sure fonts are ready before the first frame draws text
+Promise.all([document.fonts.load('40px ArchivoB'),document.fonts.load('40px AntonF')]).catch(()=>{}).finally(()=>{const s=document.createElement('script');s.src='game.js';document.body.appendChild(s);});
+</script>
+</body>
+</html>
