@@ -34,6 +34,15 @@ function inPoly(x, y, pts) {
   return c;
 }
 function polyArea(pts) { let s = 0; for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) s += (pts[j].x + pts[i].x) * (pts[j].y - pts[i].y); return Math.abs(s / 2); }
+// which copies of something to draw so it shows on both sides of a screen edge it straddles
+function ghostOffsets(x0, x1, y0, y1, m) {
+  const xs = [0], ys = [0];
+  if (x0 < m) xs.push(W); if (x1 > W - m) xs.push(-W);
+  if (y0 < m) ys.push(H); if (y1 > H - m) ys.push(-H);
+  const out = [];
+  for (const ox of xs) for (const oy of ys) out.push([ox, oy]);
+  return out;
+}
 function vibrate(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 
 // ---------------------------------------------------------------- data
@@ -422,9 +431,10 @@ function updateWorld(g, dt, live) {
       if (live) SFX.orbit(false, 0);
       // wrap
       let wrapped = false;
-      if (p.x < -15) { p.x += W + 30; wrapped = true; } else if (p.x > W + 15) { p.x -= W + 30; wrapped = true; }
-      if (p.y < -15) { p.y += H + 30; wrapped = true; } else if (p.y > H + 15) { p.y -= H + 30; wrapped = true; }
-      if (wrapped) g.trail = [];
+      const px0 = p.x, py0 = p.y;
+      if (p.x < 0) { p.x += W; wrapped = true; } else if (p.x >= W) { p.x -= W; wrapped = true; }
+      if (p.y < 0) { p.y += H; wrapped = true; } else if (p.y >= H) { p.y -= H; wrapped = true; }
+      if (wrapped) { g.trail.push({ x: px0, y: py0, t: g.t }); g.wrapJump = true; }
     }
     p.inv = Math.max(0, p.inv - dt);
     // engine sparks
@@ -432,12 +442,15 @@ function updateWorld(g, dt, live) {
     // ---- trail + loops
     const tr = g.trail;
     const last = tr[tr.length - 1];
-    if (!last || dist2(last.x, last.y, p.x, p.y) > 49) {
-      const np = { x: p.x, y: p.y, t: g.t };
-      if (last && tr.length > 6) {
+    if (!last || g.wrapJump || dist2(last.x, last.y, p.x, p.y) > 49) {
+      // b = this point starts a new piece of trail on the far side of a screen edge
+      const np = { x: p.x, y: p.y, t: g.t, b: !!g.wrapJump };
+      g.wrapJump = false;
+      if (last && !np.b && tr.length > 6) {
         let hitIdx = -1, ip = null;
         for (let j = tr.length - 5; j >= 0; j--) {
           const a = tr[j], b = tr[j + 1];
+          if (b.b) break; // loops can't reach back across an edge crossing
           const r = segX(last.x, last.y, np.x, np.y, a.x, a.y, b.x, b.y);
           if (r) { hitIdx = j; ip = r; break; }
         }
@@ -884,9 +897,14 @@ function render(g, now) {
     ctx.lineCap = 'round';
     const n = tr.length;
     const storm = g.storm > 0;
+    const M = 30, ZERO = [[0, 0]];
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 1; i < n; i++) {
         const a = tr[i - 1], b = tr[i];
+        if (b.b) continue;
+        const inside = a.x > M && a.x < W - M && a.y > M && a.y < H - M && b.x > M && b.x < W - M && b.y > M && b.y < H - M;
+        const offs = inside ? ZERO : ghostOffsets(Math.min(a.x, b.x), Math.max(a.x, b.x), Math.min(a.y, b.y), Math.max(a.y, b.y), M);
+        for (const [ox, oy] of offs) {
         const age = (g.t - b.t) / 3.4;
         const u = i / n;
         const k = Math.max(0, 1 - age);
@@ -894,7 +912,8 @@ function render(g, now) {
         ctx.globalAlpha = pass ? k : k * 0.22;
         ctx.strokeStyle = pass ? `hsl(${h},100%,${60 + 25 * u}%)` : `hsl(${h},100%,55%)`;
         ctx.lineWidth = pass ? 1 + 4 * k * u + 1.5 : 6 + 16 * k * u;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(a.x + ox, a.y + oy); ctx.lineTo(b.x + ox, b.y + oy); ctx.stroke();
+        }
       }
     }
   }
@@ -939,25 +958,30 @@ function render(g, now) {
     ctx.globalCompositeOperation = 'lighter';
     const h = g.storm > 0 ? (g.t * 300) % 360 : themeHue(1, g.t);
     const blink = p.inv > 0 && Math.floor(p.inv * 14) % 2 === 0;
-    if (!blink) {
-      G(h, p.x, p.y, 70 + p.boost * 50, 0.45);
-      G(h, p.x, p.y, 26, 0.95);
-      G(0, p.x, p.y, 12, 1, 0, 100);
+    if (!blink) for (const [ox, oy] of ghostOffsets(p.x, p.x, p.y, p.y, 130)) {
+      const x = p.x + ox, y = p.y + oy;
+      G(h, x, y, 70 + p.boost * 50, 0.45);
+      G(h, x, y, 26, 0.95);
+      G(0, x, y, 12, 1, 0, 100);
       // forward flare
       ctx.globalAlpha = 0.6; ctx.strokeStyle = `hsl(${h},100%,90%)`; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(p.x - p.vx * 30, p.y - p.vy * 30); ctx.lineTo(p.x + p.vx * 14, p.y + p.vy * 14); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(p.x - p.vy * 16, p.y + p.vx * 16); ctx.lineTo(p.x + p.vy * 16, p.y - p.vx * 16); ctx.globalAlpha = 0.3; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - p.vx * 30, y - p.vy * 30); ctx.lineTo(x + p.vx * 14, y + p.vy * 14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - p.vy * 16, y + p.vx * 16); ctx.lineTo(x + p.vy * 16, y - p.vx * 16); ctx.globalAlpha = 0.3; ctx.stroke();
     }
   }
 
   // particles
   ctx.globalCompositeOperation = 'lighter';
-  for (const q of fx.parts) {
-    const k = q.life / q.max;
+  const drawPart = (q, x, y, k) => {
     if (q.streak) {
       ctx.globalAlpha = k; ctx.strokeStyle = `hsl(${q.h},${q.s}%,${q.l + 15}%)`; ctx.lineWidth = q.size * 0.6;
-      ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x - q.vx * 0.04, q.y - q.vy * 0.04); ctx.stroke();
-    } else G(q.h, q.x, q.y, q.size * 3 * (0.4 + k * 0.6), k, q.s, q.l);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - q.vx * 0.04, y - q.vy * 0.04); ctx.stroke();
+    } else G(q.h, x, y, q.size * 3 * (0.4 + k * 0.6), k, q.s, q.l);
+  };
+  for (const q of fx.parts) {
+    const k = q.life / q.max;
+    if (q.x > 30 && q.x < W - 30 && q.y > 30 && q.y < H - 30) drawPart(q, q.x, q.y, k);
+    else for (const [ox, oy] of ghostOffsets(q.x, q.x, q.y, q.y, 30)) drawPart(q, q.x + ox, q.y + oy, k);
   }
   for (const r of fx.rings) {
     const k = r.life / r.max;
@@ -1230,5 +1254,5 @@ resize();
 attract = newWorld(true);
 if (Q.has('autostart') || DEMO) startRun(); else setState('title');
 requestAnimationFrame(frame);
-window.__starloop = { get game() { return game; }, get state() { return state; }, startRun };
+window.__starloop = { get game() { return game; }, get state() { return state; }, startRun, get W() { return W; }, get H() { return H; } };
 })();
