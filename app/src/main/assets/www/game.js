@@ -436,6 +436,12 @@ function updateWorld(g, dt, live) {
       if (p.y < 0) { p.y += H; wrapped = true; } else if (p.y >= H) { p.y -= H; wrapped = true; }
       if (wrapped) { g.trail.push({ x: px0, y: py0, t: g.t }); g.wrapJump = true; }
     }
+    // unwrapped camera position: keeps counting past the screen edge so the background never jumps
+    if (g.ux === undefined) { g.ux = p.x; g.uy = p.y; g.lx = p.x; g.ly = p.y; }
+    let ddx = p.x - g.lx, ddy = p.y - g.ly;
+    if (ddx > W / 2) ddx -= W; else if (ddx < -W / 2) ddx += W;
+    if (ddy > H / 2) ddy -= H; else if (ddy < -H / 2) ddy += H;
+    g.ux += ddx; g.uy += ddy; g.lx = p.x; g.ly = p.y;
     p.inv = Math.max(0, p.inv - dt);
     // engine sparks
     if (Math.random() < 0.9) part(p.x, p.y, -p.vx * 60 + rand(-30, 30), -p.vy * 60 + rand(-30, 30), rand(0.3, 0.7), themeHue(rand(0.6, 1), g.t), rand(2, 4), { drag: 2.5 });
@@ -790,7 +796,11 @@ function render(g, now) {
   ctx.globalAlpha = 1;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, PW, PH);
   // parallax based on player
-  const px = g ? (g.p.x / W - 0.5) : 0, py = g ? (g.p.y / H - 0.5) : 0;
+  // stars scroll with the unwrapped position (they tile, so it never ends);
+  // the nebula uses a periodic offset so a full lap around the screen lands back where it started
+  const ux = g && g.ux !== undefined ? g.ux : (g ? g.p.x : 0), uy = g && g.uy !== undefined ? g.uy : (g ? g.p.y : 0);
+  const sxp = ux / W, syp = uy / H;
+  const px = Math.sin(TAU * sxp) * 0.5, py = Math.sin(TAU * syp) * 0.5;
   const drawNeb = (n, a) => { if (!n || a <= 0) return; ctx.globalAlpha = a; const k = 1.08; const ow = PW * k, oh = PH * k; ctx.drawImage(n, (PW - ow) / 2 - px * PW * 0.03, (PH - oh) / 2 - py * PH * 0.03, ow, oh); };
   drawNeb(nebulaA, 1);
   if (nebulaB) { drawNeb(nebulaB, ease(nebulaMix)); }
@@ -798,7 +808,7 @@ function render(g, now) {
   ctx.globalCompositeOperation = 'lighter';
   for (const s of stars) {
     const par = [0.01, 0.025, 0.05][s.l];
-    let x = ((s.x - px * par + t * 0.002 * (s.l + 1)) % 1 + 1) % 1 * PW, y = ((s.y - py * par) % 1 + 1) % 1 * PH;
+    let x = ((s.x - sxp * par + t * 0.002 * (s.l + 1)) % 1 + 1) % 1 * PW, y = ((s.y - syp * par) % 1 + 1) % 1 * PH;
     const tw = 0.55 + 0.45 * Math.sin(t * s.sp + s.ph);
     const r = s.s * SC * (s.l === 2 ? 6 : 3);
     G(s.h, x, y, r, tw * (s.l === 2 ? 0.8 : 0.5), 40, 75);
