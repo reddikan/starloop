@@ -7,14 +7,14 @@ A one-button arcade game for Android, made for the Retroid Pocket 5. You fly a c
 - **Hold** to grab the nearest star and orbit it. The longer you orbit, the more speed you build.
 - **Release** to fling off in a straight line. Stars gently bend your path as you pass them.
 - **Cross your own trail** to close a loop. Crystals, void mites, stars and prism comets inside the loop are captured.
-- Your **LIGHT** drains all the time. Captures refill it. When it runs out, the run is over.
+- You have **3 lives**. Each time a void mite hits you, you lose one, and nearby mites get blasted away so you can recover. Lose all three and the run is over.
 
 ### Scoring
 - Catching more things in one loop raises the score for each thing. Loops of 3+, 5+, 8+ and 12+ get their own call-outs (NICE LOOP, STELLAR, SUPERNOVA, HYPERNOVA).
 - Each scoring loop closed within 3.6 seconds of the last adds to your **chain multiplier** (up to x16).
-- **Gold crystals** are worth extra. **Void mites** hunt you. Touching one costs light and breaks your chain, but looping one destroys it for a big bonus.
+- **Gold crystals** are worth extra. **Void mites** hunt you. Touching one costs a life and breaks your chain, but looping one destroys it for a big bonus.
 - Looping a **star** ignites it for bonus points.
-- A **prism comet** crosses the screen now and then. Loop it to start a **PRISM STORM**: double points, light drains slower, crystals pour in and your trail turns rainbow.
+- A **prism comet** crosses the screen now and then. Loop it to start a **PRISM STORM**: double points, crystals pour in and your trail turns rainbow.
 - Each score threshold opens a new **sector** with a new nebula, a new star layout, more stars and more mites. There are 8 sectors, and then they repeat.
 
 ### Progression
@@ -27,6 +27,7 @@ A one-button arcade game for Android, made for the Retroid Pocket 5. You fly a c
 | --- | --- |
 | A / L1 / R1 / L2 / R2 / touch | Hold to orbit, release to fling |
 | Start (or the pause icon at bottom right) | Pause |
+| Select (title screen or pause) | Music on/off |
 | B | From pause, quit to the title screen. From the title screen, exit the game. |
 | D-pad left/right (title screen) | Change trail color |
 

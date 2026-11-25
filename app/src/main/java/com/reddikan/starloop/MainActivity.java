@@ -81,7 +81,7 @@ public class MainActivity extends Activity {
             case KeyEvent.KEYCODE_BUTTON_X: return "A";
             case KeyEvent.KEYCODE_BUTTON_Y: return "A";
             case KeyEvent.KEYCODE_BUTTON_START: return "START";
-            case KeyEvent.KEYCODE_BUTTON_SELECT: return "START";
+            case KeyEvent.KEYCODE_BUTTON_SELECT: return "SELECT";
             case KeyEvent.KEYCODE_DPAD_LEFT: return "ArrowLeft";
             case KeyEvent.KEYCODE_DPAD_RIGHT: return "ArrowRight";
             case KeyEvent.KEYCODE_DPAD_UP: return "ArrowUp";

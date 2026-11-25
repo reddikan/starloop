@@ -69,7 +69,7 @@ const sectorNeed = (s) => 5000 * s + 3000 * s * s; // score needed to leave sect
 
 // ---------------------------------------------------------------- save
 const SAVE_KEY = 'starloop_v1';
-let save = { best: 0, done: 0, missions: [], theme: 0, tut: false, runs: 0 };
+let save = { best: 0, done: 0, missions: [], theme: 0, tut: false, runs: 0, music: true };
 try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s) save = Object.assign(save, s); } catch (e) {}
 function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
 const rank = () => Math.floor(save.done / 3) + 1;
@@ -94,6 +94,7 @@ function ensureMissions() {
   while (save.missions.length < 3) save.missions.push(newMission(save.missions.map(m => m.type)));
 }
 ensureMissions(); persist();
+const START_LIVES = 3;
 
 // ---------------------------------------------------------------- canvas / sizing
 let PW = 0, PH = 0, W = 1600, H = 900, SC = 1;
@@ -203,7 +204,7 @@ const padState = {};
 function press(name, down) {
   if (padState[name] === down) return;
   padState[name] = down;
-  SFX.init();
+  SFX.init(); SFX.setMusic(save.music);
   const isHold = name === 'A' || name === 'L1' || name === 'R1' || name === 'L2' || name === 'R2' || name === 'touch' || name === 'Enter';
   if (isHold) {
     const any = ['A', 'L1', 'R1', 'L2', 'R2', 'touch', 'Enter'].some(n => padState[n]);
@@ -214,7 +215,7 @@ function press(name, down) {
 }
 window.__pad = press;
 window.__pauseGame = () => { if (state === 'play') setState('pause'); };
-const KEYMAP = { ' ': 'A', z: 'A', x: 'A', Z: 'A', X: 'A', Enter: 'Enter', Escape: 'START', p: 'START', P: 'START', Backspace: 'B', b: 'B', ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown', m: 'M' };
+const KEYMAP = { ' ': 'A', z: 'A', x: 'A', Z: 'A', X: 'A', Enter: 'Enter', Escape: 'START', p: 'START', P: 'START', Backspace: 'B', b: 'B', ArrowLeft: 'ArrowLeft', ArrowRight: 'ArrowRight', ArrowUp: 'ArrowUp', ArrowDown: 'ArrowDown', m: 'SELECT', M: 'SELECT' };
 addEventListener('keydown', e => { const n = KEYMAP[e.key]; if (n) { e.preventDefault(); press(n, true); } });
 addEventListener('keyup', e => { const n = KEYMAP[e.key]; if (n) { e.preventDefault(); press(n, false); } });
 const touches = new Set();
@@ -222,6 +223,9 @@ cv.addEventListener('pointerdown', e => {
   e.preventDefault();
   const x = e.clientX / innerWidth * W, y = e.clientY / innerHeight * H;
   if (state === 'play' && x > W - 110 && y > H - 110) { press('START', true); press('START', false); return; }
+  if ((state === 'title' && y > H - 70 && Math.abs(x - W / 2) < 260) || (state === 'pause' && Math.abs(y - (H * 0.3 + 130)) < 30 && Math.abs(x - W / 2) < 200)) {
+    press('SELECT', true); press('SELECT', false); return;
+  }
   if (state === 'title' && y > H - 150 && x > W - 520) { // theme picker taps
     press(x < W - 280 ? 'ArrowLeft' : 'ArrowRight', true); press(x < W - 280 ? 'ArrowLeft' : 'ArrowRight', false); return;
   }
@@ -242,16 +246,15 @@ function setState(s) {
   state = s; stateT = 0;
   if (s === 'play') SFX.setIntensity(game.sector >= 2 ? 2 : 1);
   if (s === 'title' || s === 'over') SFX.setIntensity(0);
-  if (s !== 'play') SFX.orbit(false, 0);
 }
 
 function newWorld(demo) {
   const g = {
-    demo, sector: 0, score: 0, shown: 0, energy: 100, chain: 0, chainT: 0, mult: 1,
+    demo, sector: 0, score: 0, shown: 0, lives: START_LIVES, lifeFx: 0, chain: 0, chainT: 0, mult: 1,
     t: 0, wells: [], shards: [], mites: [], prism: null, prismT: rand(22, 30), storm: 0,
     spawnT: 0, miteT: 9, trail: [], banner: null, tutPhase: save.tut || demo ? 99 : 0, tutT: 0,
     stats: { maxLoop: 0, mites: 0, sector: 1, score: 0, maxMult: 0, prisms: 0, loops: 0, ignites: 0 },
-    completed: [], lowT: 0, dead: false, deadT: 0,
+    completed: [], dead: false, deadT: 0,
     p: { x: W * 0.2, y: H * 0.5, vx: 1, vy: -0.2, speed: 400, boost: 0, lat: -1, ang: 0, d: 0, dir: 1, trav: 0, inv: 0, coast: 0 },
     ai: { hold: false, coast: 0.3 },
   };
@@ -396,7 +399,6 @@ function updateWorld(g, dt, live) {
         p.dir = cross >= 0 ? 1 : -1;
         p.trav = 0;
         w.pulse = 1;
-        SFX.latch();
         burst(p.x, p.y, 10, themeHue(1, g.t), 120, 0.4, 3);
         if (g.tutPhase === 0) { g.tutPhase = 1; g.tutT = 0; }
       }
@@ -416,7 +418,6 @@ function updateWorld(g, dt, live) {
       p.x = w.x + Math.cos(p.ang) * p.d; p.y = w.y + Math.sin(p.ang) * p.d;
       p.vx = -Math.sin(p.ang) * p.dir; p.vy = Math.cos(p.ang) * p.dir;
       p.boost = Math.min(0.55, p.boost + dt * 0.14);
-      if (live) SFX.orbit(true, p.boost);
     } else {
       // gentle gravity bends free flight
       let ax = 0, ay = 0;
@@ -428,7 +429,6 @@ function updateWorld(g, dt, live) {
       const n = Math.hypot(p.vx, p.vy) || 1; p.vx /= n; p.vy /= n;
       p.x += p.vx * sp * dt; p.y += p.vy * sp * dt;
       p.boost *= Math.exp(-dt * 0.9);
-      if (live) SFX.orbit(false, 0);
       // wrap
       let wrapped = false;
       const px0 = p.x, py0 = p.y;
@@ -541,20 +541,14 @@ function updateWorld(g, dt, live) {
   // ---- chain timer
   if (g.chainT > 0) { g.chainT -= dt; if (g.chainT <= 0) { if (g.chain >= 3 && live) text(W - 120, 170, 'CHAIN LOST', 0, 20, 1, { white: 1, vy: 20 }); g.chain = 0; g.mult = 1; } }
 
-  // ---- energy / sectors (only for real runs)
+  // ---- sectors (only for real runs)
+  g.lifeFx = Math.max(0, g.lifeFx - dt);
   if (live && !g.demo || (live && DEMO)) {
-    if (!g.dead) {
-      const drain = (g.tutPhase < 3 ? 0.6 : (2.9 + g.sector * 0.5) * Math.min(1, 0.5 + g.t / 60)) * (g.storm > 0 ? 0.3 : 1);
-      g.energy -= drain * dt;
-      if (g.energy < 25) { g.lowT -= dt; if (g.lowT <= 0) { SFX.lowPulse(); g.lowT = 0.5 + g.energy / 50; } }
-      if (g.energy <= 0) die(g);
-    }
     if (!g.dead && g.score >= sectorNeed(g.sector + 1)) {
       g.sector++;
       g.stats.sector = Math.max(g.stats.sector, g.sector + 1);
       layoutWells(g, false);
       nebulaB = makeNebula(g.sector); nebulaMix = 0;
-      g.energy = Math.min(100, g.energy + 25);
       g.banner = { t: 0, s: `SECTOR ${g.sector + 1}`, sub: SECTORS[g.sector % SECTORS.length].name };
       SFX.sector(); SFX.setIntensity(g.sector >= 2 ? 2 : 1);
       screenFlash = 0.6; screenFlashH = SECTORS[g.sector % SECTORS.length].hues[0];
@@ -601,10 +595,7 @@ function closeLoop(g, poly, live) {
   const bonus = 1 + Math.max(0, n - 1) * 0.3;
   let pts = (caught.length * 25 + golds * 75 + mitesK * 120 + wellsK * 40 + (prismK ? 600 : 0)) * bonus * g.mult * storm;
   pts = Math.round(pts / 5) * 5;
-  if (!g.demo || DEMO) {
-    g.score += pts;
-    g.energy = Math.min(100, g.energy + caught.length * 2.9 + golds * 3.5 + mitesK * 8 + wellsK * 2.5 + (prismK ? 30 : 0));
-  }
+  if (!g.demo || DEMO) g.score += pts;
   const st = g.stats;
   st.maxLoop = Math.max(st.maxLoop, n); st.mites += mitesK; st.loops++; st.ignites += wellsK; st.maxMult = Math.max(st.maxMult, g.mult); st.score = g.score;
   if (prismK) st.prisms++;
@@ -652,21 +643,27 @@ function closeLoop(g, poly, live) {
 
 function playerHit(g, m, live) {
   const p = g.p;
-  p.inv = 1.3;
+  p.inv = 2.0;
   burst(m.x, m.y, 30, 300, 300, 0.8, 4, { hv: 30 });
   burst(p.x, p.y, 24, 0, 260, 0.6, 3, { s: 0, l: 90 });
   ring(p.x, p.y, 10, 380, 0.5, 340, 6);
   if (!live) return;
-  g.energy -= 20; g.stats.hits = (g.stats.hits || 0) + 1; g.chain = 0; g.mult = 1; g.chainT = 0;
+  g.lives--; g.lifeFx = 1; g.stats.hits = (g.stats.hits || 0) + 1; g.chain = 0; g.mult = 1; g.chainT = 0;
   shake = 22; screenFlash = 0.5; screenFlashH = 340; hitstop = 0.08;
-  text(p.x, p.y - 30, '-LIGHT', 340, 22, 0.9);
   SFX.hit(); vibrate(70);
-  if (g.energy <= 0) die(g);
+  if (g.lives <= 0) { die(g); return; }
+  text(p.x, p.y - 30, g.lives === 1 ? 'LAST LIFE!' : 'LIFE LOST', 340, 24, 1.1, { white: g.lives === 1 });
+  // shockwave clears mites close by so you get a moment to recover
+  ring(p.x, p.y, 10, 700, 0.7, 340, 8);
+  for (let i = g.mites.length - 1; i >= 0; i--) {
+    const q = g.mites[i];
+    if (dist2(q.x, q.y, p.x, p.y) < 240 * 240) { burst(q.x, q.y, 24, 300, 300, 0.7, 4, { streak: 1 }); g.mites.splice(i, 1); }
+  }
 }
 
 function die(g) {
   if (g.dead) return;
-  g.dead = true; g.deadT = 0; g.energy = 0;
+  g.dead = true; g.deadT = 0; g.lives = 0;
   const p = g.p;
   p.lat = -1;
   slowmo = 0.25;
@@ -674,7 +671,7 @@ function die(g) {
   burst(p.x, p.y, 50, 0, 300, 2.0, 8, { s: 0, l: 90 });
   for (let i = 0; i < 4; i++) ring(p.x, p.y, 5, 300 + i * 260, 1.4, themeHue(i / 4, g.t), 8 - i);
   shake = 30; screenFlash = 1; screenFlashH = themeHue(1, g.t);
-  SFX.die(); SFX.orbit(false, 0); vibrate(200);
+  SFX.die(); vibrate(200);
   g.stats.score = g.score;
   checkMissions(g);
   g.newBest = g.score > save.best;
@@ -733,7 +730,9 @@ function aiThink(g, dt) {
 }
 
 // ---------------------------------------------------------------- buttons
+function toggleMusic() { save.music = !save.music; persist(); SFX.setMusic(save.music); SFX.ui(); }
 function onButton(n) {
+  if (n === 'SELECT' && (state === 'title' || state === 'pause')) { toggleMusic(); return; }
   if (state === 'title') {
     if (stateT < 0.3) return;
     if (n === 'ArrowLeft' || n === 'ArrowRight') {
@@ -743,7 +742,6 @@ function onButton(n) {
       if (THEMES[save.theme].rank > rank()) { SFX.hit(); return; }
       startRun();
     } else if (n === 'B') { if (window.Android && Android.exit) Android.exit(); }
-    else if (n === 'M') { SFX.setMuted(!muted); muted = !muted; }
   } else if (state === 'play') {
     if (n === 'START' || n === 'B') { setState('pause'); SFX.ui(); }
   } else if (state === 'pause') {
@@ -755,7 +753,6 @@ function onButton(n) {
     else if (n === 'B') toTitle();
   }
 }
-let muted = false;
 function toTitle() {
   attract = newWorld(true);
   game = null;
@@ -1018,8 +1015,8 @@ function drawOverlay(g, now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1; ctx.drawImage(vignette, 0, 0, PW, PH);
-  if (g && g.energy < 25 && state === 'play' && !g.dead) {
-    ctx.globalAlpha = (0.5 - g.energy / 50) * (0.5 + 0.5 * Math.sin(t * 8));
+  if (g && g.lifeFx > 0 && state === 'play' && !g.dead) {
+    ctx.globalAlpha = g.lifeFx * 0.6;
     ctx.drawImage(glow(350, 100, 30), -PW * 0.25, -PH * 0.25, PW * 1.5, PH * 1.5);
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -1051,25 +1048,30 @@ function drawHud(g, t) {
   const hue = themeHue(1, t);
   glowText(fmt(g.shown), 40, 58, 52, 'ArchivoB, sans-serif', '#fff', `hsl(${hue},100%,60%)`, 22, 'left');
   glowText('BEST ' + fmt(Math.max(save.best, g.score)), 42, 100, 19, 'AntonF, sans-serif', 'rgba(255,255,255,0.6)', 'transparent', 0, 'left');
-  // energy bar
-  const bw = 480, bx = W / 2 - bw / 2, by = 34;
-  const e = clamp(g.energy / 100, 0, 1);
-  ctx.globalAlpha = 0.55; ctx.fillStyle = 'rgba(255,255,255,0.12)';
-  roundRect(bx, by, bw, 14, 7); ctx.fill();
-  const low = g.energy < 25;
-  const gr = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-  gr.addColorStop(0, `hsl(${low ? 350 : themeHue(0, t)},100%,60%)`); gr.addColorStop(1, `hsl(${low ? 20 : themeHue(1, t)},100%,70%)`);
-  ctx.globalAlpha = 1; ctx.fillStyle = gr; ctx.shadowColor = `hsl(${low ? 350 : hue},100%,60%)`; ctx.shadowBlur = 16;
-  roundRect(bx, by, Math.max(14, bw * e), 14, 7); ctx.fill(); ctx.shadowBlur = 0;
-  ctx.globalAlpha = 0.5; ctx.fillStyle = '#000';
-  for (let i = 1; i < 10; i++) ctx.fillRect(bx + bw * i / 10 - 1, by, 2, 14);
-  ctx.globalAlpha = 0.7;
-  glowText(g.storm > 0 ? 'PRISM STORM  ' + g.storm.toFixed(1) : 'LIGHT', W / 2, by + 34, 17, 'AntonF, sans-serif', g.storm > 0 ? `hsl(${(t * 300) % 360},100%,80%)` : 'rgba(255,255,255,0.8)', 'transparent', 0);
+  // lives
+  const by = 34, bw = 480, bx = W / 2 - bw / 2;
+  for (let i = 0; i < START_LIVES; i++) {
+    const x = W / 2 + (i - (START_LIVES - 1) / 2) * 64, y = by + 10;
+    const alive = i < g.lives;
+    const justLost = i === g.lives && g.lifeFx > 0;
+    ctx.globalCompositeOperation = 'lighter';
+    if (alive) {
+      const bob = Math.sin(t * 3 + i) * 2;
+      G(hue, x, y + bob, 46, 0.65); G(hue, x, y + bob, 20, 1); G(0, x, y + bob, 10, 1, 0, 100);
+    } else if (justLost) {
+      const k = g.lifeFx;
+      G(340, x, y, 34 + (1 - k) * 60, k); 
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    if (!alive) { ctx.globalAlpha = 0.35; ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 11, 0, TAU); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+  if (g.storm > 0) { ctx.globalAlpha = 0.9; glowText('PRISM STORM  ' + g.storm.toFixed(1), W / 2, by + 36, 17, 'AntonF, sans-serif', `hsl(${(t * 300) % 360},100%,80%)`, 'transparent', 0); }
   // sector progress
   const s0 = g.sector === 0 ? 0 : sectorNeed(g.sector), s1 = sectorNeed(g.sector + 1);
   const sp = clamp((g.score - s0) / (s1 - s0), 0, 1);
-  ctx.globalAlpha = 0.4; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(bx + 60, by + 52, bw - 120, 3);
-  ctx.globalAlpha = 0.9; ctx.fillStyle = `hsl(${SECTORS[g.sector % SECTORS.length].hues[0]},100%,70%)`; ctx.fillRect(bx + 60, by + 52, (bw - 120) * sp, 3);
+  ctx.globalAlpha = 0.4; ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(bx + 60, by + 58, bw - 120, 3);
+  ctx.globalAlpha = 0.9; ctx.fillStyle = `hsl(${SECTORS[g.sector % SECTORS.length].hues[0]},100%,70%)`; ctx.fillRect(bx + 60, by + 58, (bw - 120) * sp, 3);
   // multiplier
   ctx.globalAlpha = 1;
   const mx = W - 50;
@@ -1093,7 +1095,7 @@ function drawHud(g, t) {
     glowText(b.sub, W / 2, H / 2 + 30, 30, 'AntonF, sans-serif', `hsl(${hh},100%,80%)`, `hsl(${hh},100%,50%)`, 14);
   }
   // tutorial
-  const tips = ['HOLD  A  (or touch) to grab the nearest star and orbit it', 'RELEASE to fling off.  Orbiting builds speed', 'Cross your own trail to CLOSE A LOOP.  Everything inside is captured!', 'Captures refill your LIGHT.  Loop the dark VOID MITES to destroy them.  Never touch them!'];
+  const tips = ['HOLD  A  (or touch) to grab the nearest star and orbit it', 'RELEASE to fling off.  Orbiting builds speed', 'Cross your own trail to CLOSE A LOOP.  Everything inside is captured!', 'You have 3 LIVES.  Loop the dark VOID MITES to destroy them.  Each one that hits you costs a life!'];
   if (g.tutPhase < 4 && !g.dead) {
     const tip = tips[g.tutPhase];
     ctx.globalAlpha = 0.75 + 0.25 * Math.sin(t * 4);
@@ -1159,8 +1161,8 @@ function drawTitle(t) {
   }
   glowText(`◀  ${th.name}  ▶`, W - 50 - sw / 2, sy + 40, 26, 'ArchivoB, sans-serif', locked ? 'rgba(255,255,255,0.35)' : '#fff', 'transparent', 0, 'center');
   if (locked) glowText(`UNLOCKS AT RANK ${th.rank}`, W - 50 - sw / 2, sy + 72, 16, 'AntonF, sans-serif', 'hsl(350,100%,75%)', 'transparent', 0, 'center');
-  ctx.globalAlpha = 0.4 * k;
-  glowText('D-PAD: TRAIL   ·   B: EXIT', W / 2, H - 36, 16, 'AntonF, sans-serif', '#fff', 'transparent', 0);
+  ctx.globalAlpha = 0.65 * k;
+  glowText(`D-PAD: TRAIL   ·   SELECT: MUSIC ${save.music ? 'ON' : 'OFF'}   ·   B: EXIT`, W / 2, H - 36, 19, 'AntonF, sans-serif', '#fff', 'transparent', 0);
   ctx.globalAlpha = 1;
 }
 
@@ -1186,6 +1188,7 @@ function drawPause(t) {
   ctx.globalAlpha = 1;
   glowText('PAUSED', W / 2, H * 0.3, 90, 'ArchivoB, sans-serif', '#fff', `hsl(${themeHue(1, t)},100%,60%)`, 30);
   glowText('A: RESUME      B: QUIT TO TITLE', W / 2, H * 0.3 + 80, 24, 'AntonF, sans-serif', 'rgba(255,255,255,0.8)', 'transparent', 0);
+  glowText(`SELECT: MUSIC ${save.music ? 'ON' : 'OFF'}`, W / 2, H * 0.3 + 130, 22, 'ArchivoB, sans-serif', save.music ? `hsl(${themeHue(1, t)},100%,80%)` : 'rgba(255,255,255,0.5)', 'transparent', 0);
   panelMissions(W / 2 - 260, H * 0.62, 1, game && game.stats);
 }
 
@@ -1193,7 +1196,7 @@ function drawOver(g, t) {
   const k = ease(stateT / 0.6);
   ctx.globalAlpha = 0.55 * k; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = k;
-  glowText('LIGHT FADED', W / 2, H * 0.16, 44, 'AntonF, sans-serif', 'rgba(255,255,255,0.8)', 'transparent', 0);
+  glowText('GAME OVER', W / 2, H * 0.16, 44, 'AntonF, sans-serif', 'rgba(255,255,255,0.8)', 'transparent', 0);
   const shownScore = g.score * ease(stateT / 1.2);
   glowText(fmt(shownScore), W / 2, H * 0.3, 120, 'ArchivoB, sans-serif', '#fff', `hsl(${themeHue(1, t)},100%,60%)`, 40);
   if (g.newBest && stateT > 1.2) {

@@ -2,7 +2,7 @@
 // STARLOOP synth audio — everything generated live with WebAudio, no sample files.
 const SFX = (() => {
   let ac = null, master, comp, send, musicBus, noiseBuf, hum, humGain, humFilt;
-  let intensity = 0, nextStep = 0, step = 0, sched = null, muted = false;
+  let intensity = 0, nextStep = 0, step = 0, sched = null, muted = false, musicOn = true;
   const BPM = 100, STEP = 60 / BPM / 4;
   const A4 = 440;
   const f = (semi) => A4 * Math.pow(2, semi / 12);
@@ -89,7 +89,7 @@ const SFX = (() => {
   function schedule() {
     if (!ac || muted) return;
     while (nextStep < ac.currentTime + 0.25) {
-      playStep(step, nextStep);
+      if (musicOn) playStep(step, nextStep);
       step++; nextStep += STEP;
     }
   }
@@ -127,6 +127,7 @@ const SFX = (() => {
     init,
     get ready() { return !!ac; },
     setIntensity(i) { intensity = i; },
+    setMusic(on) { musicOn = on; if (musicBus && ac) musicBus.gain.setTargetAtTime(on ? 0.9 : 0, ac.currentTime, 0.08); },
     setMuted(m) { muted = m; if (master && ac) master.gain.setTargetAtTime(m ? 0 : 0.85, ac.currentTime, 0.05); },
     capture(n, chain, gold) {
       if (!ac) return; const t = ac.currentTime;
